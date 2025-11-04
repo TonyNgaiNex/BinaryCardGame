@@ -1,0 +1,40 @@
+using System;
+using Cysharp.Threading.Tasks;
+using TMPro;
+using UnityEngine;
+
+namespace Nex.BinaryCard
+{
+    public class EnemyBase : MonoBehaviour
+    {
+        [SerializeField] int initialHealth = 100;
+        [SerializeField] TextMeshProUGUI text;
+        [HideInInspector]public int health;
+        OnePlayerManager player;
+        public void Initialize(OnePlayerManager aPlayer)
+        {
+            health = initialHealth;
+            text.text = $"Health: {health}";
+
+            player = aPlayer;
+        }
+
+        public void Damage(int damage)
+        {
+            health -= damage;
+            text.text = $"Health: {health}";
+            if (health <= 0)
+                Death();
+        }
+
+        public async UniTask Turn()
+        {
+            player.Damage(1);
+            await UniTask.Delay(TimeSpan.FromSeconds(2));
+        }
+        void Death()
+        {
+            text.text = $"Dead";
+        }
+    }
+}
