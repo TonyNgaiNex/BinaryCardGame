@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
+using Nex.Utils;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -9,11 +11,13 @@ namespace Nex.BinaryCard
         [SerializeField] DetectionManager detectionManager = null!;
         [SerializeField] PreviewsManager previewsManager = null!;
         [SerializeField] OnePlayerDetectionEngine detectionEnginePrefab = null!;
-        [SerializeField] GameObject playersContainer = null!;
+        [SerializeField] Transform playersContainer = null!;
         [SerializeField] Transform enemyContainer;
         [SerializeField] EnemyBase enemyPrefab;
-        [SerializeField]OnePlayerManager onePlayerManager = null!;
+        [SerializeField]OnePlayerManager onePlayerManagerPrefab = null!;
         [SerializeField] int numOfPlayers = 1;
+
+        List<OnePlayerManager> players = new List<OnePlayerManager>();
         void Start()
         {
             if (Application.isEditor)
@@ -31,18 +35,17 @@ namespace Nex.BinaryCard
                 detectionManager.BodyPoseDetectionManager, detectionManager.PlayAreaController,
                 detectionManager.SetupStateManager);
 
-            playersContainer.SetActive(false);
-            for (var playerIndex = 0; playerIndex < numOfPlayers; playerIndex++)
+            for (int playerIndex = 0; playerIndex < numOfPlayers; playerIndex++)
             {
-                var detectionEngine = Instantiate(detectionEnginePrefab, playersContainer.transform);
-                detectionEngine.Initialize(playerIndex, detectionManager.BodyPoseDetectionManager);
-                onePlayerManager.Initialize(detectionEngine);
+                var player = Instantiate(onePlayerManagerPrefab, playersContainer);
+                player.Initialize(0, detectionManager.BodyPoseDetectionManager);
+                players.Add(player);
             }
 
             await ScreenBlockerManager.Instance.Hide();
 
             await RunSetup();
-            RunGame();
+            await RunGame();
         }
 
         void Update()
@@ -74,34 +77,55 @@ namespace Nex.BinaryCard
 
         #region Game
 
-        void RunGame()
+        async UniTask RunGame()
         {
             detectionManager.ConfigForGameplay();
-            playersContainer.SetActive(true);
-            RunBattle(enemyPrefab).Forget();
+            await RunInitialSelectCard();
+            await RunBattle(enemyPrefab);
         }
 
-        void RunMapDecision()
+        async UniTask RunInitialSelectCard()
         {
-
+            //TODO when the game start let player select cards
+            await UniTask.Yield();
         }
 
         async UniTask RunBattle(EnemyBase enemyBase)
         {
             var enemy = Instantiate(enemyPrefab, enemyContainer);
-            enemy.Initialize(onePlayerManager);
-            while (enemy.health > 0 && onePlayerManager.health > 0)
+            enemy.Initialize(players);
+            while (enemy.health > 0 && IsAllPlayerAlive())
             {
-                onePlayerManager.ResetShield();
-                await onePlayerManager.Turn(enemy);
+                RestAllPlayerShield();
+                List<UniTask> playBattleTasks = new List<UniTask>();
+                foreach (var player in players)
+                {
+                    var task = player.BattleRound(enemyBase);
+                    playBattleTasks.Add(task);
+                }
+                await UniTask.WhenAll(playBattleTasks);
                 await enemy.Turn();
             }
-            Debug.Log("End Game");
+        }
+        #endregion
+
+        #region Players
+
+        bool IsAllPlayerAlive()
+        {
+            foreach (var player in players)
+            {
+                if (player.health <= 0) return false;
+            }
+            return true;
         }
 
-        void RunRest()
+        void RestAllPlayerShield()
         {
-
+            foreach (var player in players)
+            {
+                player.ResetShield();
+            }
         }
         #endregion
     }

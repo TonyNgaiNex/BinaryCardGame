@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -10,13 +11,13 @@ namespace Nex.BinaryCard
         [SerializeField] int initialHealth = 100;
         [SerializeField] TextMeshProUGUI text;
         [HideInInspector]public int health;
-        OnePlayerManager player;
-        public void Initialize(OnePlayerManager aPlayer)
+        List<OnePlayerManager> player;
+        public void Initialize(List<OnePlayerManager> aPlayers)
         {
             health = initialHealth;
             text.text = $"Health: {health}";
 
-            player = aPlayer;
+            player = aPlayers;
         }
 
         public void Damage(int damage)
@@ -29,7 +30,7 @@ namespace Nex.BinaryCard
 
         public async UniTask Turn()
         {
-            player.Damage(1);
+            player[0].Damage(1);
             await UniTask.Delay(TimeSpan.FromSeconds(2));
         }
         void Death()

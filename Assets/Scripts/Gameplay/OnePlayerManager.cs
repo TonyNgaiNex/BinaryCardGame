@@ -1,35 +1,41 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using Cysharp.Threading.Tasks;
 using Jazz;
 using Nex;
+using Nex.Utils;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Nex.BinaryCard
 {
     public class OnePlayerManager : MonoBehaviour
     {
-        [SerializeField] float chooseAnswerThreshold;
+        [SerializeField] OnePlayerDetectionEngine onePlayerDetectionEngine;
         [SerializeField] int initHealth;
-        [SerializeField] TextMeshProUGUI text;
+        [SerializeField] TextMeshProUGUI statText;
         [SerializeField] Transform cardLeftContainer;
         [SerializeField] Transform cardRightContainer;
-        [SerializeField] List<CardBase> attackedCards;
-        [SerializeField] List<CardBase> defensiveCards;
+        [SerializeField] List<CardBase> initialCards;
+        [SerializeField] float threshold;
         [HideInInspector]public int health;
         int shield;
-        OnePlayerDetectionEngine playerDetectionEngine;
         PlayerState currentPlayerState;
         UniTaskCompletionSource<PlayerAnswer> _playerAnswer;
-        public void Initialize(OnePlayerDetectionEngine onePlayerDetectionEngine)
+        Queue<float> queue = new Queue<float>();
+        int playerIndex;
+        public void Initialize(int aPlayerIndex, BodyPoseDetectionManager aBodyPoseDetectionManager)
         {
-            playerDetectionEngine = onePlayerDetectionEngine;
+            onePlayerDetectionEngine.Initialize(aPlayerIndex, aBodyPoseDetectionManager);
+            playerIndex = aPlayerIndex;
             onePlayerDetectionEngine.NewDetectionCapturedAndProcessed += ProcessPose;
 
             health = initHealth;
             shield = 0;
-            text.text =$"Health: {health}, Shield: {shield}";
+            statText.text =$"Health: {health}, Shield: {shield}";
         }
 
         public void Damage(int damage)
@@ -41,35 +47,43 @@ namespace Nex.BinaryCard
                 shield = 0;
                 health -= damage;
             }
-            text.text =$"Health: {health}, Shield: {shield}";
-            if (health <= 0)
-            {
-                text.text ="Dead";
-            }
+            UpdateStatus();
         }
 
         public void Shield(int amount)
         {
             shield += amount;
-            text.text =$"Health: {health}, Shield: {shield}";
+            UpdateStatus();
         }
 
         public void ResetShield()
         {
             shield = 0;
-            text.text =$"Health: {health}, Shield: {shield}";
+            UpdateStatus();
         }
         void ProcessPose(BodyPoseDetectionResult result)
         {
             if (currentPlayerState != PlayerState.AwaitAnswer) return;
-            var processResult = result.processed;
-            var dpi = playerDetectionEngine.DistancePerInch;
-
+            var dpi = onePlayerDetectionEngine.DistancePerInch;
+            var chestX = onePlayerDetectionEngine.Chest.position.x;
+            var leftDistance = chestX-onePlayerDetectionEngine.LeftHand.position.x;
+            var rightDistance = onePlayerDetectionEngine.RightHand.position.x-chestX;
+            leftDistance/=dpi;
+            rightDistance/=dpi;
+            var add = leftDistance - rightDistance;
+            queue.Enqueue(add);
+            queue.Dequeue();
+            if(queue.Average()>threshold )
+                _playerAnswer.TrySetResult(PlayerAnswer.Left);
+            if(queue.Average()<-threshold )
+                _playerAnswer.TrySetResult(PlayerAnswer.Right);
         }
 
-        public async UniTask Turn(EnemyBase enemyBase)
+        public async UniTask BattleRound(EnemyBase enemyBase)
         {
-            var chosenCard = await ChooseCard();
+            initialCards.Shuffle();
+            var randomTwoCards = initialCards.Take(2).ToList();
+            var chosenCard =  await PlayerChooseBetweenTwoOption(randomTwoCards[0], randomTwoCards[1]);
             await ProcessCard(chosenCard, enemyBase);
         }
 
@@ -80,13 +94,10 @@ namespace Nex.BinaryCard
             await UniTask.Delay(TimeSpan.FromSeconds(2));
         }
 
-        async UniTask<CardBase> ChooseCard()
+        async UniTask<CardBase> PlayerChooseBetweenTwoOption(CardBase leftCardPrefab, CardBase rightCardPrefab)
         {
-            var randomAttackCard = attackedCards[UnityEngine.Random.Range(0, attackedCards.Count)];
-            var randomDefenseCard = defensiveCards[UnityEngine.Random.Range(0, defensiveCards.Count)];
-
-            var leftCard = Instantiate(randomAttackCard, cardLeftContainer);
-            var rightCard = Instantiate(randomDefenseCard, cardRightContainer);
+            var leftCard = Instantiate(leftCardPrefab, cardLeftContainer);
+            var rightCard = Instantiate(rightCardPrefab, cardRightContainer);
 
             leftCard.button.onClick.AddListener(() =>
             {
@@ -99,6 +110,7 @@ namespace Nex.BinaryCard
 
             _playerAnswer = new UniTaskCompletionSource<PlayerAnswer>();
             currentPlayerState = PlayerState.AwaitAnswer;
+            queue = new Queue<float>(Enumerable.Repeat(0f, 10));
             var playerAnswer = await _playerAnswer.Task;
             currentPlayerState = PlayerState.None;
 
@@ -107,6 +119,12 @@ namespace Nex.BinaryCard
 
             if(playerAnswer==PlayerAnswer.Left)return leftCard;
             else return rightCard;
+        }
+
+        void UpdateStatus()
+        {
+            if (health <= 0) statText.text = "dead";
+            else statText.text =$"Health: {health}\nShield: {shield}";
         }
     }
 
