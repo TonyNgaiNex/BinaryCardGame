@@ -49,9 +49,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d216e3c7306bc434d91bd576e9e196cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Nex.BinaryCard.EnemyBase
-  initialHealth: 50
-  text: {fileID: 4110859524035254084}
-  health: 0
+  initHealth: 100
+  statText: {fileID: 4110859524035254084}
+  processBattleEffect:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &5501093351787576117
 GameObject:
   m_ObjectHideFlags: 0

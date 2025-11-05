@@ -195,11 +195,10 @@ MonoBehaviour:
   cardRightContainer: {fileID: 5826185604534655865}
   leftSlider: {fileID: 4398517105458108202}
   rightSlider: {fileID: 7344122113308776389}
-  initialCards:
-  - {fileID: 5477571026336312245, guid: e8542c48e39e84777a6fec3b60cfd5ad, type: 3}
-  - {fileID: 5477571026336312245, guid: 71c8a4cb5e568442eb2612d24624fe15, type: 3}
+  initialBattleCards:
+  - {fileID: 8755041035469261314, guid: e8542c48e39e84777a6fec3b60cfd5ad, type: 3}
+  - {fileID: 8881789475986336453, guid: 71c8a4cb5e568442eb2612d24624fe15, type: 3}
   threshold: 0
-  health: 0
 --- !u!1 &1409563471991836271
 GameObject:
   m_ObjectHideFlags: 0

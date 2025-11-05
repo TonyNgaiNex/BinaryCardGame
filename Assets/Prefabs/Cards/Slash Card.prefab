@@ -146,10 +146,10 @@ GameObject:
   m_Component:
   - component: {fileID: 6407060473636658011}
   - component: {fileID: 7936675279238018086}
-  - component: {fileID: 5477571026336312245}
   - component: {fileID: 8530868307999583640}
   - component: {fileID: 5024199332687574002}
   - component: {fileID: 3501034403493639492}
+  - component: {fileID: 8881789475986336453}
   m_Layer: 5
   m_Name: Slash Card
   m_TagString: Untagged
@@ -187,21 +187,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 924463340300273314}
   m_CullTransparentMesh: 1
---- !u!114 &5477571026336312245
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 924463340300273314}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2320abfe0feb640c9871a76cedeae41d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CardBase
-  button: {fileID: 3501034403493639492}
-  damage: 5
-  shield: 0
 --- !u!114 &8530868307999583640
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -297,6 +282,23 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &8881789475986336453
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 924463340300273314}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: caaaa71c47a204396abfb7e10aac598c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BattleCard
+  button: {fileID: 3501034403493639492}
+  cardEffects:
+  - action: 0
+    target: 4
+    value: 5
 --- !u!1 &2883641218119465903
 GameObject:
   m_ObjectHideFlags: 0

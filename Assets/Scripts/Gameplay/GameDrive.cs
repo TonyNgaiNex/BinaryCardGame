@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Cysharp.Threading.Tasks;
 using Nex.Utils;
 using UnityEngine;
@@ -10,14 +11,14 @@ namespace Nex.BinaryCard
     {
         [SerializeField] DetectionManager detectionManager = null!;
         [SerializeField] PreviewsManager previewsManager = null!;
-        [SerializeField] OnePlayerDetectionEngine detectionEnginePrefab = null!;
         [SerializeField] Transform playersContainer = null!;
         [SerializeField] Transform enemyContainer;
         [SerializeField] EnemyBase enemyPrefab;
         [SerializeField]OnePlayerManager onePlayerManagerPrefab = null!;
         [SerializeField] int numOfPlayers = 1;
 
-        List<OnePlayerManager> players = new List<OnePlayerManager>();
+        readonly List<OnePlayerManager> players = new List<OnePlayerManager>();
+        List<EnemyBase> enemies = new List<EnemyBase>();
         void Start()
         {
             if (Application.isEditor)
@@ -39,6 +40,7 @@ namespace Nex.BinaryCard
             {
                 var player = Instantiate(onePlayerManagerPrefab, playersContainer);
                 player.Initialize(0, detectionManager.BodyPoseDetectionManager);
+                player.processBattleEffect.AddListener(ProcessBattleEffect);
                 players.Add(player);
             }
 
@@ -81,30 +83,31 @@ namespace Nex.BinaryCard
         {
             detectionManager.ConfigForGameplay();
             await RunInitialSelectCard();
-            await RunBattle(enemyPrefab);
+            await RunBattle();
         }
 
         async UniTask RunInitialSelectCard()
         {
             //TODO when the game start let player select cards
-            await UniTask.Yield();
+            await UniTask.Delay(1000);
         }
 
-        async UniTask RunBattle(EnemyBase enemyBase)
+        async UniTask RunBattle()
         {
+            enemies = new List<EnemyBase>();
             var enemy = Instantiate(enemyPrefab, enemyContainer);
-            enemy.Initialize(players);
-            while (enemy.health > 0 && IsAllPlayerAlive())
+            enemy.Initialize();
+            enemies.Add(enemy);
+            while (enemies.Count>0&& IsAllPlayerAlive())
             {
                 RestAllPlayerShield();
                 List<UniTask> playBattleTasks = new List<UniTask>();
                 foreach (var player in players)
                 {
-                    var task = player.BattleRound(enemyBase);
+                    var task = player.BattleTurn();
                     playBattleTasks.Add(task);
                 }
                 await UniTask.WhenAll(playBattleTasks);
-                await enemy.Turn();
             }
         }
         #endregion
@@ -115,7 +118,7 @@ namespace Nex.BinaryCard
         {
             foreach (var player in players)
             {
-                if (player.health <= 0) return false;
+                if (player.characterAttributes[CharacterAttribute.Health] <= 0) return false;
             }
             return true;
         }
@@ -124,9 +127,83 @@ namespace Nex.BinaryCard
         {
             foreach (var player in players)
             {
-                player.ResetShield();
+                player.characterAttributes[CharacterAttribute.Shield] = 0;
             }
         }
         #endregion
+
+        #region BattleProcess
+
+        void ProcessBattleEffect(BattleEffect battleEffect, CharacterBase character)
+        {
+            var targets = GetBattleTarget(battleEffect.target, character);
+            ProcessBattleEffect(battleEffect, targets);
+        }
+
+        List<CharacterBase> GetBattleTarget(BattleTarget battleTarget, CharacterBase character)
+        {
+            List<CharacterBase> targetCharacters = new List<CharacterBase>();
+            switch (battleTarget)
+            {
+                case BattleTarget.Self:
+                    targetCharacters.Add(character);
+                    break;
+                case BattleTarget.AllPlayer:
+                    foreach (var player in players)
+                        targetCharacters.Add(player);
+                    break;
+                case BattleTarget.LowestHealthPlayer:
+                    var lowestHealthPlayer=players?
+                        .OrderBy(c => c.characterAttributes[CharacterAttribute.Health])
+                        .FirstOrDefault();
+                    targetCharacters.Add(lowestHealthPlayer);
+                    break;
+                case BattleTarget.RandomEnemy:
+                    var randomEnemy = enemies
+                        .Where(c => c.characterAttributes[CharacterAttribute.Health] > 0)
+                        .OrderBy(_ => Random.value)
+                        .FirstOrDefault();
+                    targetCharacters.Add(randomEnemy);
+                    break;
+                case BattleTarget.LowestHealthEnemy:
+                    var lowestHealthEnemy=enemies?
+                        .OrderBy(c => c.characterAttributes[CharacterAttribute.Health])
+                        .FirstOrDefault();
+                    targetCharacters.Add(lowestHealthEnemy);
+                    break;
+                default:
+                    Debug.LogError($"Unknown battle target: {battleTarget}");
+                    break;
+            }
+            return targetCharacters;
+
+        #endregion
+        }
+
+        void ProcessBattleEffect(BattleEffect battleEffect, List<CharacterBase> characters)
+        {
+            switch (battleEffect.action)
+            {
+                case BattleAction.Attack:
+                    foreach (var target in characters)
+                        target.ReceiveDamage(battleEffect.value);
+                    break;
+                case BattleAction.Shield:
+                    foreach (var target in characters)
+                        target.ReceiveShield(battleEffect.value);
+                    break;
+                case BattleAction.Charge:
+                    foreach (var target in characters)
+                        target.characterAttributes[CharacterAttribute.Energy]+=battleEffect.value;
+                    break;
+                case BattleAction.Heal:
+                    foreach (var target in characters)
+                        target.characterAttributes[CharacterAttribute.Health]+=battleEffect.value;
+                    break;
+                default:
+                    Debug.LogError($"Unknown battle effect: {battleEffect}");
+                    break;
+            }
+        }
     }
 }
