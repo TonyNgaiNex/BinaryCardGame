@@ -9,6 +9,7 @@ using Nex.Utils;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 namespace Nex.BinaryCard
 {
@@ -19,23 +20,25 @@ namespace Nex.BinaryCard
         [SerializeField] TextMeshProUGUI statText;
         [SerializeField] Transform cardLeftContainer;
         [SerializeField] Transform cardRightContainer;
+        [SerializeField] Slider leftSlider;
+        [SerializeField] Slider rightSlider;
         [SerializeField] List<CardBase> initialCards;
         [SerializeField] float threshold;
         [HideInInspector]public int health;
         int shield;
-        PlayerState currentPlayerState;
         UniTaskCompletionSource<PlayerAnswer> _playerAnswer;
-        Queue<float> queue = new Queue<float>();
         int playerIndex;
         public void Initialize(int aPlayerIndex, BodyPoseDetectionManager aBodyPoseDetectionManager)
         {
             onePlayerDetectionEngine.Initialize(aPlayerIndex, aBodyPoseDetectionManager);
             playerIndex = aPlayerIndex;
-            onePlayerDetectionEngine.NewDetectionCapturedAndProcessed += ProcessPose;
 
             health = initHealth;
             shield = 0;
             statText.text =$"Health: {health}, Shield: {shield}";
+
+            leftSlider.gameObject.SetActive(false);
+            rightSlider.gameObject.SetActive(false);
         }
 
         public void Damage(int damage)
@@ -63,20 +66,18 @@ namespace Nex.BinaryCard
         }
         void ProcessPose(BodyPoseDetectionResult result)
         {
-            if (currentPlayerState != PlayerState.AwaitAnswer) return;
-            var dpi = onePlayerDetectionEngine.DistancePerInch;
-            var chestX = onePlayerDetectionEngine.Chest.position.x;
-            var leftDistance = chestX-onePlayerDetectionEngine.LeftHand.position.x;
-            var rightDistance = onePlayerDetectionEngine.RightHand.position.x-chestX;
-            leftDistance/=dpi;
-            rightDistance/=dpi;
-            var add = leftDistance - rightDistance;
-            queue.Enqueue(add);
-            queue.Dequeue();
-            if(queue.Average()>threshold )
-                _playerAnswer.TrySetResult(PlayerAnswer.Left);
-            if(queue.Average()<-threshold )
-                _playerAnswer.TrySetResult(PlayerAnswer.Right);
+            var chestY = onePlayerDetectionEngine.Chest.position.y;
+            var raiseLeft = onePlayerDetectionEngine.LeftHand.position.y>chestY;
+            var raiseRight = onePlayerDetectionEngine.RightHand.position.y>chestY;
+
+            leftSlider.value -= .5f*Time.deltaTime;
+            rightSlider.value -= .5f*Time.deltaTime;
+
+            if (raiseLeft)leftSlider.value += 1f*Time.deltaTime;
+            if (raiseRight)rightSlider.value += 1f*Time.deltaTime;
+
+            if (leftSlider.value >= 1) _playerAnswer.TrySetResult(PlayerAnswer.Left);
+            if (rightSlider.value >= 1) _playerAnswer.TrySetResult(PlayerAnswer.Right);
         }
 
         public async UniTask BattleRound(EnemyBase enemyBase)
@@ -96,9 +97,15 @@ namespace Nex.BinaryCard
 
         async UniTask<CardBase> PlayerChooseBetweenTwoOption(CardBase leftCardPrefab, CardBase rightCardPrefab)
         {
+            // init left and right card
             var leftCard = Instantiate(leftCardPrefab, cardLeftContainer);
             var rightCard = Instantiate(rightCardPrefab, cardRightContainer);
 
+            var leftEntryAnimation = leftCard.EntryAnimation();
+            var rightEntryAnimation = rightCard.EntryAnimation();
+            await UniTask.WhenAll(rightEntryAnimation, leftEntryAnimation);
+
+            // Add button for debug usage
             leftCard.button.onClick.AddListener(() =>
             {
                 _playerAnswer.TrySetResult(PlayerAnswer.Left);
@@ -108,17 +115,31 @@ namespace Nex.BinaryCard
                 _playerAnswer.TrySetResult(PlayerAnswer.Right);
             });
 
+            // start the detection
+            leftSlider.gameObject.SetActive(true);
+            rightSlider.gameObject.SetActive(true);
+            leftSlider.value = 0;
+            rightSlider.value = 0;
             _playerAnswer = new UniTaskCompletionSource<PlayerAnswer>();
-            currentPlayerState = PlayerState.AwaitAnswer;
-            queue = new Queue<float>(Enumerable.Repeat(0f, 10));
+            onePlayerDetectionEngine.NewDetectionCapturedAndProcessed += ProcessPose;
+
+            // finish detection
             var playerAnswer = await _playerAnswer.Task;
-            currentPlayerState = PlayerState.None;
+            onePlayerDetectionEngine.NewDetectionCapturedAndProcessed -= ProcessPose;
+            leftSlider.gameObject.SetActive(false);
+            rightSlider.gameObject.SetActive(false);
+
+            var chosenCard = playerAnswer==PlayerAnswer.Left ? leftCard : rightCard;
+            await chosenCard.ChosenAnimation();
+
+            var leftExitAnimation = leftCard.ExitAnimation();
+            var rightExitAnimation = rightCard.ExitAnimation();
+            await UniTask.WhenAll(leftExitAnimation, rightExitAnimation);
 
             Destroy(leftCard.gameObject);
             Destroy(rightCard.gameObject);
 
-            if(playerAnswer==PlayerAnswer.Left)return leftCard;
-            else return rightCard;
+            return chosenCard;
         }
 
         void UpdateStatus()
@@ -126,12 +147,6 @@ namespace Nex.BinaryCard
             if (health <= 0) statText.text = "dead";
             else statText.text =$"Health: {health}\nShield: {shield}";
         }
-    }
-
-    public enum PlayerState
-    {
-        None,
-        AwaitAnswer,
     }
 
     public enum PlayerAnswer
