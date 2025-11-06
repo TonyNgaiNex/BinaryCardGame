@@ -22,7 +22,7 @@ namespace Nex.BinaryCard
             characterAttributes[CharacterAttribute.Health] = initHealth;
             UpdateDisplayAttribute();
         }
-        protected void UpdateDisplayAttribute()
+        public void UpdateDisplayAttribute()
         {
             //TODO make it actually a bar not a text
             if (characterAttributes[CharacterAttribute.Health] <= 0)

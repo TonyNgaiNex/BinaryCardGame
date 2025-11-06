@@ -95,19 +95,31 @@ namespace Nex.BinaryCard
         async UniTask RunBattle()
         {
             enemies = new List<EnemyBase>();
+
             var enemy = Instantiate(enemyPrefab, enemyContainer);
             enemy.Initialize();
-            enemies.Add(enemy);
+            enemy.processBattleEffect.AddListener(ProcessBattleEffect);
+            enemies.Add(enemy)
+                ;
             while (enemies.Count>0&& IsAllPlayerAlive())
             {
                 RestAllPlayerShield();
                 List<UniTask> playBattleTasks = new List<UniTask>();
                 foreach (var player in players)
                 {
+                    player.RefreshEnergy();
                     var task = player.BattleTurn();
                     playBattleTasks.Add(task);
                 }
                 await UniTask.WhenAll(playBattleTasks);
+
+                List<UniTask> enemyBattleTasks = new List<UniTask>();
+                foreach (var em in enemies)
+                {
+                    var task = em.BattleTurn();
+                    enemyBattleTasks.Add(task);
+                }
+                await UniTask.WhenAll(enemyBattleTasks);
             }
         }
         #endregion
@@ -204,6 +216,9 @@ namespace Nex.BinaryCard
                     Debug.LogError($"Unknown battle effect: {battleEffect}");
                     break;
             }
+
+            foreach (var target in characters)
+                target.UpdateDisplayAttribute();
         }
     }
 }

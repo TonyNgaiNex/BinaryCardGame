@@ -365,7 +365,7 @@ Canvas:
   m_AdditionalShaderChannelsFlag: 25
   m_UpdateRectTransformForStandalone: 0
   m_SortingLayerID: 0
-  m_SortingOrder: 0
+  m_SortingOrder: -1
   m_TargetDisplay: 0
 --- !u!224 &1221740731
 RectTransform:
@@ -928,7 +928,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Nex.BinaryCard.GameDrive
   detectionManager: {fileID: 1411836956}
   previewsManager: {fileID: 1548813860}
-  detectionEnginePrefab: {fileID: 2621293086254693783, guid: 1255340fd2a51490d9c8cbf11e3b203d, type: 3}
   playersContainer: {fileID: 1883517062}
   enemyContainer: {fileID: 1270765669}
   enemyPrefab: {fileID: 5197835276004395744, guid: 70b4b61f649e14c4e9e6cee1668548fc, type: 3}

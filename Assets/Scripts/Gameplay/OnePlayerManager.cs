@@ -4,6 +4,7 @@ using System.Linq;
 using Cysharp.Threading.Tasks;
 using Jazz;
 using Nex.Utils;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -17,8 +18,10 @@ namespace Nex.BinaryCard
         [SerializeField] Slider leftSlider;
         [SerializeField] Slider rightSlider;
         [SerializeField] List<BattleCard> initialBattleCards;
+        [SerializeField] int defaultEnergy;
+        [SerializeField] TextMeshProUGUI energyText;
 
-        UniTaskCompletionSource<PlayerAnswer> playerAnswer;
+        UniTaskCompletionSource<PlayerAnswer> playerAnswerTaskCompletionSource;
         public void Initialize(int aPlayerIndex, BodyPoseDetectionManager aBodyPoseDetectionManager)
         {
             base.Initialize();
@@ -39,21 +42,26 @@ namespace Nex.BinaryCard
             if (raiseLeft)leftSlider.value += 1f*Time.deltaTime;
             if (raiseRight)rightSlider.value += 1f*Time.deltaTime;
 
-            if (leftSlider.value >= 1) playerAnswer.TrySetResult(PlayerAnswer.Left);
-            if (rightSlider.value >= 1) playerAnswer.TrySetResult(PlayerAnswer.Right);
+            if (leftSlider.value >= 1) playerAnswerTaskCompletionSource.TrySetResult(PlayerAnswer.Left);
+            if (rightSlider.value >= 1) playerAnswerTaskCompletionSource.TrySetResult(PlayerAnswer.Right);
         }
 
         public async UniTask BattleTurn()
         {
-            initialBattleCards.Shuffle();
-            var randomTwoCards = initialBattleCards.Take(2).ToList();
-            var chosenCard =  await PlayerChooseBetweenTwoOption(randomTwoCards[0], randomTwoCards[1]) as BattleCard;
-            await ProcessBattleCard(chosenCard);
+            while(characterAttributes[CharacterAttribute.Energy]>0)
+            {
+                initialBattleCards.Shuffle();
+                var randomTwoCards = initialBattleCards.Take(2).ToList();
+                var chosenCard = await PlayerChooseBetweenTwoOption(randomTwoCards[0], randomTwoCards[1]) as BattleCard;
+                await ProcessBattleCard(chosenCard);
+                characterAttributes[CharacterAttribute.Energy]--;
+                energyText.text = characterAttributes[CharacterAttribute.Energy].ToString();
+            }
         }
 
         async UniTask ProcessBattleCard(BattleCard card)
         {
-            await UniTask.Delay(TimeSpan.FromSeconds(2));
+            await UniTask.Delay(TimeSpan.FromSeconds(1));
             foreach(var effect in card.cardEffects)
                 processBattleEffect.Invoke(effect, this);
         }
@@ -71,11 +79,11 @@ namespace Nex.BinaryCard
             // Add button for debug usage
             leftCard.button.onClick.AddListener(() =>
             {
-                this.playerAnswer.TrySetResult(PlayerAnswer.Left);
+                this.playerAnswerTaskCompletionSource.TrySetResult(PlayerAnswer.Left);
             });
             rightCard.button.onClick.AddListener(() =>
             {
-                this.playerAnswer.TrySetResult(PlayerAnswer.Right);
+                this.playerAnswerTaskCompletionSource.TrySetResult(PlayerAnswer.Right);
             });
 
             // start the detection
@@ -83,11 +91,11 @@ namespace Nex.BinaryCard
             rightSlider.gameObject.SetActive(true);
             leftSlider.value = 0;
             rightSlider.value = 0;
-            this.playerAnswer = new UniTaskCompletionSource<PlayerAnswer>();
+            this.playerAnswerTaskCompletionSource = new UniTaskCompletionSource<PlayerAnswer>();
             onePlayerDetectionEngine.NewDetectionCapturedAndProcessed += ProcessPose;
 
             // finish detection
-            var playerAnswer = await this.playerAnswer.Task;
+            var playerAnswer = await this.playerAnswerTaskCompletionSource.Task;
             onePlayerDetectionEngine.NewDetectionCapturedAndProcessed -= ProcessPose;
             leftSlider.gameObject.SetActive(false);
             rightSlider.gameObject.SetActive(false);
@@ -104,8 +112,11 @@ namespace Nex.BinaryCard
 
             return chosenCard;
         }
+        public void RefreshEnergy()
+        {
+            characterAttributes[CharacterAttribute.Energy] = defaultEnergy;
+        }
     }
-
     public enum PlayerAnswer
     {
         Left,
