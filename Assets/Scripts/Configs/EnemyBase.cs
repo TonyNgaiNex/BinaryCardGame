@@ -20,7 +20,7 @@ namespace Nex.BinaryCard
         public async UniTask BattleTurn()
         {
 
-            processBattleEffect.Invoke(battleEffects[currentEffectIndex], this);
+            await processBattleEffect.Invoke(battleEffects[currentEffectIndex], this);
             currentEffectIndex++;
             if (battleEffects.Count <= currentEffectIndex) currentEffectIndex = 0;
             await UniTask.Delay(TimeSpan.FromSeconds(2));

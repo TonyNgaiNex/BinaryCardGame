@@ -29,6 +29,7 @@ namespace Nex.BinaryCard
 
             leftSlider.gameObject.SetActive(false);
             rightSlider.gameObject.SetActive(false);
+            energyText.enabled = false;
         }
         void ProcessPose(BodyPoseDetectionResult result)
         {
@@ -48,6 +49,8 @@ namespace Nex.BinaryCard
 
         public async UniTask BattleTurn()
         {
+            energyText.enabled = true;
+            energyText.text = characterAttributes[CharacterAttribute.Energy].ToString();
             while(characterAttributes[CharacterAttribute.Energy]>0)
             {
                 initialBattleCards.Shuffle();
@@ -57,13 +60,14 @@ namespace Nex.BinaryCard
                 characterAttributes[CharacterAttribute.Energy]--;
                 energyText.text = characterAttributes[CharacterAttribute.Energy].ToString();
             }
+            energyText.enabled = false;
         }
 
         async UniTask ProcessBattleCard(BattleCard card)
         {
             await UniTask.Delay(TimeSpan.FromSeconds(1));
             foreach(var effect in card.cardEffects)
-                processBattleEffect.Invoke(effect, this);
+                await processBattleEffect.Invoke(effect, this);
         }
 
         async UniTask<CardBase> PlayerChooseBetweenTwoOption(CardBase leftCardPrefab, CardBase rightCardPrefab)

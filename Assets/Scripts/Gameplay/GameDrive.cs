@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using Cysharp.Threading.Tasks;
+using DG.Tweening;
 using Nex.Utils;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -16,6 +18,8 @@ namespace Nex.BinaryCard
         [SerializeField] EnemyBase enemyPrefab;
         [SerializeField]OnePlayerManager onePlayerManagerPrefab = null!;
         [SerializeField] int numOfPlayers = 1;
+        [SerializeField] TextMeshProUGUI roundText = null!;
+        [SerializeField] ActionVisualEffect actionVisualEffectPrefab = null!;
 
         readonly List<OnePlayerManager> players = new List<OnePlayerManager>();
         List<EnemyBase> enemies = new List<EnemyBase>();
@@ -40,9 +44,10 @@ namespace Nex.BinaryCard
             {
                 var player = Instantiate(onePlayerManagerPrefab, playersContainer);
                 player.Initialize(0, detectionManager.BodyPoseDetectionManager);
-                player.processBattleEffect.AddListener(ProcessBattleEffect);
+                player.processBattleEffect+=ProcessBattleEffect;
                 players.Add(player);
             }
+            roundText.enabled = false;
 
             await ScreenBlockerManager.Instance.Hide();
 
@@ -98,11 +103,18 @@ namespace Nex.BinaryCard
 
             var enemy = Instantiate(enemyPrefab, enemyContainer);
             enemy.Initialize();
-            enemy.processBattleEffect.AddListener(ProcessBattleEffect);
-            enemies.Add(enemy)
-                ;
+            enemy.processBattleEffect+=ProcessBattleEffect;
+            enemies.Add(enemy);
+
+            int round = 1;
+            roundText.enabled = true;
+            roundText.color = Color.clear;
+            roundText.text = $"Round {round}";
+            await roundText.DOColor(Color.white, 0.2f).WithCancellation(this.GetCancellationTokenOnDestroy());
+
             while (enemies.Count>0&& IsAllPlayerAlive())
             {
+                roundText.text = $"Round {round}\nPlayers Turn";
                 RestAllPlayerShield();
                 List<UniTask> playBattleTasks = new List<UniTask>();
                 foreach (var player in players)
@@ -113,6 +125,7 @@ namespace Nex.BinaryCard
                 }
                 await UniTask.WhenAll(playBattleTasks);
 
+                roundText.text = $"Round {round}\nEnemies Turn";
                 List<UniTask> enemyBattleTasks = new List<UniTask>();
                 foreach (var em in enemies)
                 {
@@ -120,6 +133,7 @@ namespace Nex.BinaryCard
                     enemyBattleTasks.Add(task);
                 }
                 await UniTask.WhenAll(enemyBattleTasks);
+                round++;
             }
         }
         #endregion
@@ -146,10 +160,11 @@ namespace Nex.BinaryCard
 
         #region BattleProcess
 
-        void ProcessBattleEffect(BattleEffect battleEffect, CharacterBase character)
+        async UniTask ProcessBattleEffect(BattleEffect battleEffect, CharacterBase character)
         {
             var targets = GetBattleTarget(battleEffect.target, character);
             ProcessBattleEffect(battleEffect, targets);
+            await UniTask.Delay(1000);
         }
 
         List<CharacterBase> GetBattleTarget(BattleTarget battleTarget, CharacterBase character)
@@ -192,17 +207,29 @@ namespace Nex.BinaryCard
         #endregion
         }
 
-        void ProcessBattleEffect(BattleEffect battleEffect, List<CharacterBase> characters)
+        async UniTask ProcessBattleEffect(BattleEffect battleEffect, List<CharacterBase> characters)
         {
+            var tasks = new List<UniTask>();
             switch (battleEffect.action)
             {
                 case BattleAction.Attack:
                     foreach (var target in characters)
+                    {
                         target.ReceiveDamage(battleEffect.value);
+                        var damageEffect = Instantiate(actionVisualEffectPrefab, target.transform);
+                        var damageEffectTask = damageEffect.Animation($"Damage {battleEffect.value}", Color.red);
+                        tasks.Add(damageEffectTask);
+                    }
                     break;
                 case BattleAction.Shield:
                     foreach (var target in characters)
+                    {
                         target.ReceiveShield(battleEffect.value);
+                        var shieldEffect = Instantiate(actionVisualEffectPrefab, target.transform);
+                        var shieldEffectTask = shieldEffect.Animation($"Shield {battleEffect.value}", Color.cadetBlue);
+                        tasks.Add(shieldEffectTask);
+                    }
+
                     break;
                 case BattleAction.Charge:
                     foreach (var target in characters)
@@ -210,7 +237,12 @@ namespace Nex.BinaryCard
                     break;
                 case BattleAction.Heal:
                     foreach (var target in characters)
-                        target.characterAttributes[CharacterAttribute.Health]+=battleEffect.value;
+                    {
+                        target.characterAttributes[CharacterAttribute.Health] += battleEffect.value;
+                        var healEffect = Instantiate(actionVisualEffectPrefab, target.transform);
+                        var healEffectTask = healEffect.Animation($"Heal {battleEffect.value}", Color.green);
+                        tasks.Add(healEffectTask);
+                    }
                     break;
                 default:
                     Debug.LogError($"Unknown battle effect: {battleEffect}");
@@ -219,6 +251,8 @@ namespace Nex.BinaryCard
 
             foreach (var target in characters)
                 target.UpdateDisplayAttribute();
+
+            await UniTask.WhenAll(tasks);
         }
     }
 }

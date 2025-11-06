@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -11,7 +12,7 @@ namespace Nex.BinaryCard
         [HideInInspector]public Dictionary<CharacterAttribute,int> characterAttributes;
         [SerializeField] int initHealth;
         [SerializeField] TextMeshProUGUI statText;
-        [HideInInspector]public UnityEvent<BattleEffect,CharacterBase> processBattleEffect;
+        public  Func<BattleEffect,CharacterBase,UniTask> processBattleEffect;
 
         public virtual void Initialize()
         {
@@ -34,6 +35,7 @@ namespace Nex.BinaryCard
             string attributeDisplayed="";
             foreach (var kvp in characterAttributes)
             {
+                if (kvp.Key == CharacterAttribute.Energy) continue;
                 if (kvp.Value > 0) attributeDisplayed += $"{kvp.Key}: {kvp.Value}\n";
             }
             statText.text = attributeDisplayed;
